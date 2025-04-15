@@ -27,3 +27,11 @@ cpp <- datos %>% select("P13ST.G","P18N.F","sexo","edad","idenpa")
 cpp <- cpp %>% dplyr::filter(idenpa==152)
 #Hay que cambiar los nombres
 sjlabelled::get_label(cpp) #Ver
+#Renombrar variables
+cpp <- cpp %>% rename("fun_partpol"=P18N.F, # Funcionan los partidos políticos 
+                      "conf_partpol"=P13ST.G) # Confianza en los partidos políticos 
+cpp$conf_partpol  <- set_label(x = cpp$conf_partpol, label = "Confianza: Partidos politicos")
+get_label(cpp$conf_partpol)
+
+cpp$fun_partpol  <- set_label(x = cpp$fun_partpol, label = "Funcionan los Partidos politicos")
+get_label(cpp$fun_partpol)
