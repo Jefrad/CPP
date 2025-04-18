@@ -1,0 +1,118 @@
+##Recomendaciones 
+# borrar todos los objetos en el espacio de trabajo
+rm(list=ls())      
+# valores sin notación científica
+options(scipen=999) 
+
+##Cargar Datos latinobarometro
+# Carga el archivo .RData desde la carpeta Input/datos/
+load("Input/datos/Latinobarometro_2023_Esp_Rdata_v1_0.rdata")
+
+# Reemplaza "Latinobarometro_2023_Esp_v1_0" por nombre más manejable
+datos <- Latinobarometro_2023_Esp_v1_0
+
+##Seleccionar las variables que vamos a a utilizar para operacionalizar 
+#Instalar y cargar pacman
+install.packages("pacman")
+pacman::p_load(dplyr, sjmisc, car, sjlabelled, stargazer, haven)
+#Ubicar lo que buscamos 
+"P13ST.G"#Confianza en paridos politicos 
+"P18N.F" #Funcionan bien los partidos politicos
+"Sexo" #Sexo
+"Edad" #Edad
+"Idenpa"#Pais
+#separar variables de la base de datos
+cpp <- datos %>% select("P13ST.G","P18N.F","sexo","edad","idenpa")
+#Filtrar el idenpa al de chile
+cpp <- cpp %>% dplyr::filter(idenpa==152)
+#Hay que cambiar los nombres
+sjlabelled::get_label(cpp) #Ver
+#Renombrar variables
+cpp <- cpp %>% rename("fun_partpol"=P18N.F, # Funcionan los partidos políticos 
+                      "conf_partpol"=P13ST.G) # Confianza en los partidos políticos 
+cpp$conf_partpol  <- set_label(x = cpp$conf_partpol, label = "Confianza: Partidos politicos")
+get_label(cpp$conf_partpol)
+
+cpp$fun_partpol  <- set_label(x = cpp$fun_partpol, label = "Funcionan los Partidos politicos")
+get_label(cpp$fun_partpol)
+#Cambiar valores 
+frq(cpp$fun_partpol)
+cpp$fun_partpol <- recode(cpp$fun_partpol, "c(-5)=NA")
+cpp$fun_partpol <- set_labels(cpp$fun_partpol,
+                                   labels=c( "Mucha"=1,
+                                             "Algo"=2,
+                                             "Poca"=3,
+                                             "Ninguna"=4))
+frq(cpp$conf_partpol)
+cpp$conf_partpol <- recode(cpp$conf_partpol, "c(-2,-1)=NA")
+cpp$conf_partpol <- set_labels(cpp$conf_partpol,
+                                    labels=c( "Mucha"=1,
+                                              "Algo"=2,
+                                              "Poca"=3,
+                                              "Ninguna"=4))
+#Segmentar edades
+cpp$categoria_edad <- cut(cpp$edad,breaks = c(18, 29, 59, 92),labels = c("Jóvenes (18-29)", "Adultos (30-59)", "Adultos mayores (60-92)"),
+                      right = TRUE, include.lowest = TRUE)
+#Codificar sexo
+cpp$sexo <- car::recode(cpp$sexo, "1=0;2=1")
+cpp$sexo <- factor(cpp$sexo,
+                         labels=c( "Hombre",
+                                   "Mujer"),
+                         levels=c(0,1))
+#Juntar las variables de confianza 
+variables <- variables %>% mutate(indice_percepcion = rowMeans(select(., conf_partpol, fun_partpol),na.rm = TRUE))
+#verificar
+head(variables$indice_percepcion)
+##Hacer los graficos
+#instalar las cosas para los graficos que por algun motivo no se me guardan
+install.packages(c("dplyr", "ggplot2", "summarytools"))
+library(dplyr)
+library(ggplot2)
+library(summarytools)
+#Separ los datos que vamos a utilziar
+variables <- cpp %>% select("conf_partpol","fun_partpol","sexo","categoria_edad")
+#Aqui abajo van las pruebas para hacer un grafico 
+tabla_final <- variables %>%
+  group_by(categoria_edad, sexo) %>%
+  summarise(
+    Percepcion_promedio = mean(indice_percepcion, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+print(tabla_final)
+#Hacer tabla 
+#Promedio con intervalos del 95%
+variables%>%
+  group_by(categoria_edad, sexo) %>%
+  summarise(
+    Media = mean(indice_percepcion, na.rm = TRUE),
+    SE = sd(indice_percepcion, na.rm = TRUE)/sqrt(n()),
+    .groups = "drop"
+  ) %>%
+  ggplot(aes(x = categoria_edad, y = Media, color = sexo)) +
+  geom_pointrange(aes(ymin = Media - 1.96*SE, ymax = Media + 1.96*SE),
+                  size = 1,
+                  position = position_dodge(width = 0.5)) +
+  labs(title = "Percepción promedio con intervalos del 95%")
+#Comparacion por sexo y grupo etario
+ggplot(cpp, aes(x = categoria_edad, y = conf_partpol, fill = sexo)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("#1f77b4", "#ff7f0e")) +
+  labs(
+    title = "Confianza en Partidos por Sexo y Edad",
+    x = "Grupo Etario",
+    y = "Confianza",
+    fill = "Sexo"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#Distribucion de confianza por densidad
+ggplot(cpp, aes(x = conf_partpol)) +
+  geom_histogram(aes(y = ..density..), bins = 5, fill = "#1f77b4", alpha = 0.7) +
+  geom_density(color = "#ff7f0e", linewidth = 1) +
+  labs(rt
+    title = "Distribución de Confianza en Partidos",
+    x = "Nivel de Confianza (1 = Mucha, 4 = Ninguna)",
+    y = "Densidad"
+  ) +
+  theme_minimal()
