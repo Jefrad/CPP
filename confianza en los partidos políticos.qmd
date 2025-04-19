@@ -1,0 +1,157 @@
+---
+title: "la confianza en los partidos políticos"
+author: "godoy-saldivia"
+format: html
+editor: visual
+bibliography: references.bib
+---
+
+## 1. Introducción
+
+El presente trabajo trata sobre la confianza en los partidos políticos en Chile y su variación en torno a los grupos etarios. Se va a estudiar la confianza en los partidos políticos en Chile según grupo etario, entendiendo por ello el nivel de confianza que distintas generaciones (jóvenes, adultos y personas mayores) expresan hacia los partidos políticos. Investigar cómo los distintos grupos etarios se relacionan con los partidos políticos en términos de confianza resulta relevante, puesto que este último opera como un organismo influyente en la acción colectiva en el sentido de ser capaz de persuadir a los sujetos a actuar de acuerdo a normas sociales (Irarrázaval & Cruz, 2023)[@article-journalc]. Además, existe evidencia de que Chile tiene una confianza institucional deteriorada, sobre todo en los partidos políticos. Según la medición de la Encuesta del Centro de Estudios Públicos (CEP) de junio y julio 2023, el gobierno alcanza solo un 18% de confianza de parte de la ciudadanía. La confianza en el Congreso es de un 8% y en los partidos políticos un 3% (Irarrázaval & Cruz, 2023)[@article-journald]. Se observa una marcada tendencia a la desafección política e insatisfacción con el funcionamiento de la democracia en Chile, evidenciada por una baja participación cívica y organizacional (Riffo, F., Pérez, D., Salazar, C., & Acuña, 2019)[@riffo2019b] y comprender la variación entre la confianza en partidos politos según rango etarios aportaría herramientas prácticas no sólo para fortalecer una participación política que está en crisis, sino que también para un entendimiento general del fenómeno de la confianza institucional. Respecto al concepto de confianza en el ámbito de la política, este es un término es disputa, la recopilación de antecedentes dio cuenta de que el concepto cuenta con varias interpretaciones: en unos lados se entiende la confianza como una función evaluativa entre expectativas y realidad (Fuentes González, 2018)[@confianz2018], y por otros se trata la confianza como una relación bidireccional entre gobierno y ciudadanía (OECD, 2024)[@oecd2024]. Dicho esto, lo que se busca en esta investigación es poder aportar evidencia que permita abrir una reflexión en torno a la percepción que tienen los grupos etarios hacia los partidos políticos.
+
+## 2. Cargar base de datos y elección de variables
+
+```{r}
+# cargar base de datos
+load("C:/Users/pc17/Desktop/ipo/input/datos/Latinobarometro_2023_Esp_Rdata_v1_0.rdata")
+datos_latam <- Latinobarometro_2023_Esp_v1_0
+
+# mods
+pacman::p_load(sjlabelled,
+               dplyr, #Manipulacion de datos
+              stargazer, #Tablas
+              sjmisc, # Tablas
+              summarytools, # Tablas
+              kableExtra, #Tablas
+              sjPlot, #Tablas y gráficos
+              corrplot, # Correlaciones
+              sessioninfo, # Información de la sesión de trabajo
+              ggplot2)
+
+# variables
+"P13ST.G"# Confianza en paridos politicos 
+"P18N.F" # Funcionan bien los partidos politicos
+"Sexo" # Sexo
+"Edad" # Edad
+"Idenpa"#Pais
+```
+
+```{r}
+# separar variables de la base de datos
+confedad <- datos_latam %>% select("P13ST.G","P18N.F","sexo","edad","idenpa")
+
+# filtrar datos de chile
+confedad <- confedad %>% dplyr::filter(idenpa==152)
+
+# rename
+confedad <- confedad %>% rename("fun_partpol"=P18N.F, # Funcionan los partidos políticos 
+                      "conf_partpol"=P13ST.G) # Confianza en los partidos políticos 
+confedad$conf_partpol  <- set_label(x = confedad$conf_partpol, label = "Confianza en los partidos politicos")
+confedad$fun_partpol  <- set_label(x = confedad$fun_partpol, label = "Funcionan los Partidos politicos")
+
+# funcionan los partidos políticos / recode 
+frq(confedad$fun_partpol)
+confedad$fun_partpol <- recode(confedad$fun_partpol, "c(-5)=NA")
+confedad$fun_partpol <- set_labels(confedad$fun_partpol,
+                                    labels=c( "Mucha"=1,
+                                              "Algo"=2,
+                                              "Poca"=3,
+                                              "Ninguna"=4))
+# confianza en los partidos políticos / recode 
+frq(confedad$conf_partpol)
+confedad$conf_partpol <- recode(confedad$conf_partpol, "c(-2,-1)=NA")
+confedad$conf_partpol <- set_labels(confedad$conf_partpol,
+                                     labels=c( "Mucha"=1,
+                                               "Algo"=2,
+                                               "Poca"=3,
+                                               "Ninguna"=4))
+# fijar rangos etarios
+confedad$edad <- cut(confedad$edad,
+                            breaks = c(18, 29, 59, 92),
+                            labels = c("Jóvenes (18-29)", "Adultos (30-59)", "Adultos mayores (60-92)"),
+                            right = TRUE, include.lowest = TRUE)
+
+```
+
+```{r}
+# fijar rangos de edad
+confedad$edad <- cut(confedad$edad,
+                            breaks = c(18, 29, 59, 92),
+                            labels = c("Jóvenes (18-29)", "Adultos (30-59)", "Adultos mayores (60-92)"),
+                            right = TRUE, include.lowest = TRUE)
+# configurar sexo
+confedad$sexo <- car::recode(confedad$sexo, "1=0;2=1")
+confedad$sexo <- factor(confedad$sexo,
+                         labels=c( "Hombre",
+                                   "Mujer"),
+                         levels=c(0,1))
+
+# juntar variables de confianza
+confedad <- confedad %>% mutate(indice_percepcion = rowMeans(select(., conf_partpol, fun_partpol),na.rm = TRUE))
+# verificar
+head(confedad$indice_percepcion)
+```
+
+## 3. Realización de gráficos
+
+```{r}
+# hacer tabla
+tabla_final <- confedad %>%
+  group_by(edad, sexo) %>%
+  summarise(
+    Percepcion_promedio = mean(indice_percepcion, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+print(tabla_final)
+```
+
+```{r}
+# promedio con intervalos del 95%
+confedad%>%
+  group_by(edad, sexo) %>%
+  summarise(
+    Media = mean(indice_percepcion, na.rm = TRUE),
+    SE = sd(indice_percepcion, na.rm = TRUE)/sqrt(n()),
+    .groups = "drop"
+  ) %>%
+  ggplot(aes(x = edad, y = Media, color = sexo)) +
+  geom_pointrange(aes(ymin = Media - 1.96*SE, ymax = Media + 1.96*SE),
+                  size = 1,
+                  position = position_dodge(width = 0.5)) +
+  labs(title = "Percepción promedio con intervalos del 95%")
+```
+
+```{r}
+# comparacion por sexo y grupo etario
+ggplot(confedad, aes(x = edad, y = conf_partpol, fill = sexo)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("#1f77b4", "#ff7f0e")) +
+  labs(
+    title = "Confianza en Partidos por Sexo y Edad",
+    x = "Grupo Etario",
+    y = "Confianza",
+    fill = "Sexo"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+```{r}
+# distribucion de confianza por densidad
+ggplot(confedad, aes(x = conf_partpol)) +
+  geom_histogram(aes(y = ..density..), bins = 5, fill = "#1f77b4", alpha = 0.7) +
+  geom_density(color = "#ff7f0e", linewidth = 1) +
+  labs(rttitle = "Distribución de Confianza en Partidos",
+    x = "Nivel de Confianza (1 = Mucha, 4 = Ninguna)",
+    y = "Densidad"
+  ) +
+  theme_minimal()
+
+```
+
+## 4. Interpretación
+
+Los hallazgos de nuestro trabajo arrojan los siguientes resultados: Se registra que a nivel generalizado la población parece tener "poca" o "ninguna" confianza en los partidos políticos, siendo solamente las mujeres entre 30 y 59 años las que marginalmente confían un poco más en los partidos políticos.
